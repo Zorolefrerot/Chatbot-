@@ -1,0 +1,62 @@
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require("axios");
+const fs = require("fs");
+
+// Initialize Gemini with rotation
+const apiKeys = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY_4,
+  process.env.GEMINI_API_KEY_5,
+  process.env.GEMINI_API_KEY_6
+].filter(key => !!key);
+
+let currentKeyIndex = 0;
+
+function getModel() {
+  const genAI = new GoogleGenerativeAI(apiKeys[currentKeyIndex]);
+  return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+}
+
+async function analyzeImage(imageUrl) {
+  let attempts = 0;
+  while (attempts < apiKeys.length) {
+    try {
+      const model = getModel();
+      // Download image
+      const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
+      const buffer = Buffer.from(response.data, "binary");
+      
+      // Prepare for Gemini
+      const imagePart = {
+        inlineData: {
+          data: buffer.toString("base64"),
+          mimeType: response.headers["content-type"] || "image/jpeg",
+        },
+      };
+
+      const prompt = "Quel est le nom exact du personnage ou de la personne sur cette image ? Réponds uniquement par le nom, sans phrase supplémentaire. Pas d'emojis, pas de phrase d'intro.";
+
+      const result = await model.generateContent([prompt, imagePart]);
+      const responseText = result.response.text();
+      return responseText.trim();
+    } catch (error) {
+      if (error.message && error.message.includes("429")) {
+        console.warn(`⚠️ Clé ${currentKeyIndex + 1} épuisée (Quota). Passage à la suivante...`);
+      } else {
+        console.error(`Erreur Gemini (Clé ${currentKeyIndex + 1}):`, error.message);
+      }
+      
+      // Rotation de clé en cas d'erreur (quota, etc.)
+      currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+      attempts++;
+      
+      if (attempts >= apiKeys.length) {
+        return "Désolé, toutes les clés API sont saturées ou invalides.";
+      }
+    }
+  }
+}
+
+module.exports = { analyzeImage };
