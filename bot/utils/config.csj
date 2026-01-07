@@ -1,0 +1,9 @@
+let mangaEnabled = true;
+let geminiEnabled = true;
+
+module.exports = {
+  isMangaEnabled: () => mangaEnabled,
+  setMangaEnabled: (val) => mangaEnabled = val,
+  isGeminiEnabled: () => geminiEnabled,
+  setGeminiEnabled: (val) => geminiEnabled = val
+};
